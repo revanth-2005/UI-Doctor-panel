@@ -1,0 +1,21 @@
+{
+  "name": "Michael Chen",
+  "phone": "+1-555-0256",
+  "userId": "user_005",
+  "nutritionLimits": {
+    "macros": {
+      "calories": 2200,
+      "protein": 120,
+      "carbs": 280,
+      "fat": 75,
+      "fiber": 35
+    },
+    "micros": {
+      "sodium": 2100,
+      "potassium": 3800,
+      "calcium": 1200,
+      "zinc": 12,
+      "vitamin_b12": 3.0
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Hypertension - Updated",
+  "description": "Updated description: High blood pressure requiring low sodium diet and heart-healthy nutrition",
+  "macros": {
+    "calories": 1900,
+    "protein": 95,
+    "carbs": 220,
+    "fat": 65,
+    "fiber": 35
+  },
+  "micros": {
+    "sodium": 1400,
+    "potassium": 4200,
+    "calcium": 1300,
+    "magnesium": 450
+  }
+}

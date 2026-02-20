@@ -1,0 +1,21 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    @media (prefers-color-scheme: light) {
+      .background { fill: #059669; }
+      .foreground { fill: white; }
+      .accent { fill: #10b981; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .background { fill: #065f46; }
+      .foreground { fill: white; }
+      .accent { fill: #34d399; }
+    }
+  </style>
+  <rect class="background" width="180" height="180" rx="37" />
+  <!-- Leaf icon representing diet/nutrition -->
+  <path class="foreground" d="M90 40C110 40 130 55 140 75C140 95 130 115 110 125C105 127 95 127 90 125C75 115 60 95 60 75C60 55 70 40 90 40Z"/>
+  <path class="accent" d="M90 50C105 50 120 60 125 75C120 90 105 100 90 100C80 95 70 85 70 75C70 60 80 50 90 50Z"/>
+  <!-- Stylized "A" for Aroma -->
+  <path class="foreground" d="M70 140L90 95L110 140H100L95 130H85L80 140H70Z"/>
+  <path class="foreground" d="M87 120H93L90 113L87 120Z"/>
+</svg>
