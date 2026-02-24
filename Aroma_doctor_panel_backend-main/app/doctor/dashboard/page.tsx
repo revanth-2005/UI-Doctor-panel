@@ -64,7 +64,7 @@ export default function DoctorDashboard() {
           </TabsList>
 
           <TabsContent value="patients" className="mt-10 outline-none">
-            <PatientManagement />
+            <PatientManagement user={user} />
           </TabsContent>
 
           <TabsContent value="conditions" className="mt-10 outline-none">

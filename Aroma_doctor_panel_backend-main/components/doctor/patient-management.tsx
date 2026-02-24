@@ -43,7 +43,7 @@ interface DetailedPatient extends Patient {
   }[]
 }
 
-export default function PatientManagement() {
+export default function PatientManagement({ user }: { user: any }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -61,6 +61,8 @@ export default function PatientManagement() {
     name: "",
     phone: "",
     userId: "",
+    password: "123",
+    medicalCondition: "Diabetes",
     nutritionLimits: {
       macros: {
         calories: 2000,
@@ -81,7 +83,15 @@ export default function PatientManagement() {
         vitamin_c: 90,
         folate: 400
       }
-    }
+    },
+    user_name: "",
+    height: "",
+    weight: "",
+    bmi_score: "",
+    blood_pressure: "",
+    gender: "Male",
+    age: 42,
+    medical_info: [{ condition: "Diabetes" }]
   })
 
   // Check backend connectivity on component mount
@@ -122,48 +132,45 @@ export default function PatientManagement() {
   const loadPatients = async () => {
     setLoading(true)
     try {
-      console.log('🔍 Loading all patients from MongoDB backend...')
+      const drId = user?.id || user?.doctorId || "699807109f57554e0817ac82"
+      console.log(`🔍 Loading patients for doctor ${drId}...`)
 
-      const response = await fetch('https://aroma-db-six.vercel.app/api/patient', {
+      const response = await fetch(`/api/doctor/users/${drId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'accept': '*/*'
         }
       })
 
       if (!response.ok) {
-        throw new Error(`Backend responded with status ${response.status}`)
+        throw new Error(`API responded with status ${response.status}`)
       }
 
       const result = await response.json()
-      console.log('📋 Backend patients response:', result)
+      console.log('📋 Doctor patients response:', result)
 
-      if (result.success && result.patients) {
-        const patients: DetailedPatient[] = result.patients.map((p: any) => ({
-          _id: p._id,
-          id: p._id,
-          name: p.name,
-          phone: p.phone,
-          userId: p.userId,
-          nutritionLimits: p.nutritionLimits,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
+      if (result.success && result.data) {
+        const patients: DetailedPatient[] = result.data.map((p: any) => ({
+          ...p,
+          _id: p.id || p._id,
+          id: p.id || p._id,
+          name: p.name || p.user_name,
+          phone: p.phone || p.phone_number,
+          userId: p.userId || p.id?.substring(0, 8),
+          nutritionLimits: p.nutritionLimits || {
+            macros: { calories: 2000, protein: 100, carbs: 250, fat: 70, fiber: 25 }
+          },
+          createdAt: p.createdAt || new Date().toISOString(),
+          updatedAt: p.updatedAt || new Date().toISOString(),
           weeklyStatus: generateMockWeeklyStatus()
         }))
 
-        console.log(`✅ Loaded ${patients.length} patients from MongoDB database`)
+        console.log(`✅ Loaded ${patients.length} patients for this doctor`)
         setPatients(patients)
-
-        // Don't show notification for regular loading - only for actions
       } else {
         console.error('Invalid patients response:', result)
         setPatients([])
-        toast({
-          title: "❌ Database Error",
-          description: result.message || "Failed to load patients from database",
-          variant: "destructive",
-          duration: 5000,
-        })
       }
     } catch (error) {
       console.error('Error loading patients:', error)
@@ -185,65 +192,85 @@ export default function PatientManagement() {
 
     try {
       if (editingPatient) {
-        // Update existing patient directly via backend API
-        const response = await fetch(`https://aroma-db-six.vercel.app/api/patient/${editingPatient}`, {
+        // Update existing patient using the new API as requested
+        const response = await fetch(`/api/doctor/users/update/${editingPatient}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            user_name: formData.user_name || formData.name,
+            phone_number: formData.phone,
+            user_type: "patient",
+            height: formData.height,
+            weight: formData.weight,
+            bmi_score: formData.bmi_score,
+            blood_pressure: formData.blood_pressure,
+            gender: formData.gender,
+            age: formData.age,
+            medical_info: formData.medical_info
+          }),
         })
 
         if (response.ok) {
-          const result = await response.json()
           toast({
             title: "Success",
-            description: "Patient updated successfully",
-            variant: "default",
-            duration: 4000,
-          })
-          await loadPatients() // Reload patients from backend
-          resetForm()
-        } else {
-          const errorData = await response.json()
-          toast({
-            title: "❌ Update Failed",
-            description: errorData.message || "Unable to update patient information. Please try again.",
-            variant: "destructive",
-            duration: 5000,
-          })
-        }
-      } else {
-        // Create new patient
-        const result = await createPatient("doctor-1", formData)
-        if (result.success) {
-          toast({
-            title: "Success",
-            description: "Patient created successfully",
+            description: "User updated successfully",
             variant: "default",
             duration: 4000,
           })
           await loadPatients()
           resetForm()
         } else {
-          // Check for specific backend bug that actually means success
-          if (result.message && (result.message.includes('populate') || result.message.includes('is not a function'))) {
-            toast({
-              title: "Success",
-              description: "Patient created successfully",
-              variant: "default",
-              duration: 4000,
-            })
-            await loadPatients()
-            resetForm()
-          } else {
-            toast({
-              title: "❌ Creation Failed",
-              description: result.message || "Unable to create patient. Please check the information and try again.",
-              variant: "destructive",
-              duration: 5000,
-            })
-          }
+          const errorData = await response.json()
+          toast({
+            title: "❌ Update Failed",
+            description: errorData.message || "Unable to update patient. Please try again.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        }
+      } else {
+        // Create new patient using the new API as requested
+        const drId = user?.id || "699807109f57554e0817ac82"
+        const response = await fetch(`/api/doctor/users/create/${drId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_name: formData.user_name || formData.name,
+            phone_number: formData.phone,
+            password: formData.password || "123",
+            user_type: "patient",
+            height: formData.height,
+            weight: formData.weight,
+            bmi_score: formData.bmi_score,
+            blood_pressure: formData.blood_pressure,
+            gender: formData.gender,
+            age: formData.age,
+            medical_info: formData.medical_info
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          toast({
+            title: "Success",
+            description: "User created and linked to doctor successfully",
+            variant: "default",
+            duration: 4000,
+          })
+          await loadPatients()
+          resetForm()
+        } else {
+          const errorData = await response.json()
+          toast({
+            title: "❌ Creation Failed",
+            description: errorData.message || "Unable to create patient. Please try again.",
+            variant: "destructive",
+            duration: 5000,
+          })
         }
       }
     } catch (error) {
@@ -264,6 +291,8 @@ export default function PatientManagement() {
       name: "",
       phone: "",
       userId: "",
+      password: "123",
+      medicalCondition: "Diabetes",
       nutritionLimits: {
         macros: {
           calories: 2000,
@@ -284,7 +313,15 @@ export default function PatientManagement() {
           vitamin_c: 90,
           folate: 400
         }
-      }
+      },
+      user_name: "",
+      height: "",
+      weight: "",
+      bmi_score: "",
+      blood_pressure: "",
+      gender: "Male",
+      age: 42,
+      medical_info: [{ condition: "Diabetes" }]
     })
     setEditingPatient(null)
     setShowForm(false)
@@ -296,7 +333,15 @@ export default function PatientManagement() {
       name: patient.name,
       phone: patient.phone || "",
       userId: patient.userId || "",
-      nutritionLimits: patient.nutritionLimits || formData.nutritionLimits
+      nutritionLimits: patient.nutritionLimits || formData.nutritionLimits,
+      user_name: (patient as any).user_name || patient.name,
+      height: (patient as any).height || "",
+      weight: (patient as any).weight || "",
+      bmi_score: (patient as any).bmi_score || "",
+      blood_pressure: (patient as any).blood_pressure || "",
+      gender: (patient as any).gender || "Male",
+      age: (patient as any).age || 42,
+      medical_info: (patient as any).medical_info || [{ condition: "Diabetes" }]
     })
     setEditingPatient(patient.id || patient._id)
     setShowForm(true)
@@ -320,12 +365,14 @@ export default function PatientManagement() {
 
     setDeleting(true)
     try {
-      const response = await fetch(`https://aroma-db-six.vercel.app/api/patient/${patientToDelete.id}`, {
+      const response = await fetch(`/api/doctor/users/delete/${patientToDelete.id}`, {
         method: 'DELETE',
+        headers: {
+          'accept': '*/*'
+        }
       })
 
       if (response.ok) {
-        const result = await response.json()
         toast({
           title: "✅ Patient Deleted",
           description: `${patientToDelete.name} has been successfully removed from the system`,
@@ -493,6 +540,106 @@ export default function PatientManagement() {
                 />
               </div>
               <div>
+                <Label htmlFor="medicalCondition">Medical Condition *</Label>
+                <Select
+                  value={formData.medical_info?.[0]?.condition || "Diabetes"}
+                  onValueChange={(value) => setFormData({ ...formData, medical_info: [{ condition: value }] })}
+                >
+                  <SelectTrigger id="medicalCondition">
+                    <SelectValue placeholder="Select Condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Diabetes">Diabetes</SelectItem>
+                    <SelectItem value="Hypertension">Hypertension</SelectItem>
+                    <SelectItem value="Obesity">Obesity</SelectItem>
+                    <SelectItem value="PCOS">PCOS</SelectItem>
+                    <SelectItem value="Thyroid">Thyroid</SelectItem>
+                    <SelectItem value="General">General Health</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="gender">Gender</Label>
+                <Select
+                  value={formData.gender || "Male"}
+                  onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                >
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Select Gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="age">Age</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  value={formData.age || ""}
+                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
+                  placeholder="42"
+                />
+              </div>
+              <div>
+                <Label htmlFor="height">Height</Label>
+                <Input
+                  id="height"
+                  value={formData.height || ""}
+                  onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                  placeholder="175 cm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="weight">Weight</Label>
+                <Input
+                  id="weight"
+                  value={formData.weight || ""}
+                  onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                  placeholder="70 kg"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="bmi">BMI Score</Label>
+                <Input
+                  id="bmi"
+                  value={formData.bmi_score || ""}
+                  onChange={(e) => setFormData({ ...formData, bmi_score: e.target.value })}
+                  placeholder="22.9"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bp">Blood Pressure</Label>
+                <Input
+                  id="bp"
+                  value={formData.blood_pressure || ""}
+                  onChange={(e) => setFormData({ ...formData, blood_pressure: e.target.value })}
+                  placeholder="120/80"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Login Password *</Label>
+                <Input
+                  id="password"
+                  type="text"
+                  value={formData.password || "123"}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Set patient login password"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <Label htmlFor="calories">Daily Calories</Label>
                 <Input
                   id="calories"
@@ -513,8 +660,8 @@ export default function PatientManagement() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
+            <div className="flex gap-2 pt-4">
+              <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingPatient ? "Update Patient" : "Add Patient"}
               </Button>
@@ -565,6 +712,26 @@ export default function PatientManagement() {
                       {patient.nutritionLimits?.macros?.calories && (
                         <div className="bg-[#dcfce7] text-[#166534] px-2.5 py-0.5 rounded-md text-[10px] font-black whitespace-nowrap">
                           {patient.nutritionLimits.macros.calories} cal/day
+                        </div>
+                      )}
+                      {(patient as any).height && (
+                        <div className="bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-md text-[10px] font-black whitespace-nowrap border border-blue-100">
+                          H: {(patient as any).height}
+                        </div>
+                      )}
+                      {(patient as any).weight && (
+                        <div className="bg-orange-50 text-orange-600 px-2.5 py-0.5 rounded-md text-[10px] font-black whitespace-nowrap border border-orange-100">
+                          W: {(patient as any).weight}
+                        </div>
+                      )}
+                      {(patient as any).bmi_score && (
+                        <div className="bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-md text-[10px] font-black whitespace-nowrap border border-indigo-100">
+                          BMI: {(patient as any).bmi_score}
+                        </div>
+                      )}
+                      {(patient as any).blood_pressure && (
+                        <div className="bg-rose-50 text-rose-600 px-2.5 py-0.5 rounded-md text-[10px] font-black whitespace-nowrap border border-rose-100">
+                          BP: {(patient as any).blood_pressure}
                         </div>
                       )}
                     </div>

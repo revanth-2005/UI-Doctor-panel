@@ -98,7 +98,7 @@ export default function ConditionsManagement() {
     try {
       console.log('🔍 Loading conditions from MongoDB backend...')
 
-      const response = await fetch('https://aroma-db-six.vercel.app/api/condition/list', {
+      const response = await fetch('/api/conditions', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -112,31 +112,17 @@ export default function ConditionsManagement() {
       const result = await response.json()
       console.log('📋 Backend conditions response:', result)
 
-      if (result.success && result.conditions) {
+      if (result.success && result.data) {
         // Map backend data to frontend format
-        const mappedConditions: Condition[] = result.conditions.map((condition: any) => ({
-          id: condition._id,
-          conditionName: condition.name, // Backend uses 'name', frontend uses 'conditionName'
+        const mappedConditions: Condition[] = result.data.map((condition: any) => ({
+          id: condition.id,
+          conditionName: condition.conditionName,
           description: condition.description,
-          macronutrients: condition.macros ? {
-            calories: condition.macros.calories,
-            protein: condition.macros.protein,
-            carbs: condition.macros.carbs,
-            fat: condition.macros.fat,
-            fiber: condition.macros.fiber
-          } : undefined,
-          micronutrients: condition.micros ? {
-            sodium: condition.micros.sodium,
-            potassium: condition.micros.potassium,
-            calcium: condition.micros.calcium,
-            zinc: condition.micros.zinc,
-            magnesium: condition.micros.magnesium,
-            iron: condition.micros.iron,
-            vitamin_b12: condition.micros.vitamin_b12,
-            vitamin_d: condition.micros.vitamin_d,
-            vitamin_c: condition.micros.vitamin_c,
-            folate: condition.micros.folate
-          } : undefined
+          macronutrients: condition.macronutrients || condition.macros,
+          micronutrients: condition.micronutrients || condition.micros,
+          vitamins: condition.vitamins,
+          createdAt: condition.createdAt,
+          updatedAt: condition.updatedAt
         }))
 
         console.log(`✅ Loaded ${mappedConditions.length} conditions from MongoDB database`)
@@ -169,58 +155,66 @@ export default function ConditionsManagement() {
     setLoading(true)
 
     try {
-      // Prepare the condition data for backend API
-      const conditionData: any = {
-        name: formData.conditionName.trim(), // Backend expects 'name'
+      // Prepare the condition data for backend API with unit strings
+      const backendData: any = {
+        name: formData.conditionName.trim(),
         description: formData.description.trim() || undefined,
+        macronutrients: {
+          protein: formData.protein ? `${formData.protein}g` : undefined,
+          carbs: formData.carbs ? `${formData.carbs}g` : undefined,
+          fat: formData.fat ? `${formData.fat}g` : undefined,
+          fiber: formData.fiber ? `${formData.fiber}g` : undefined,
+          calories: formData.calories ? `${formData.calories}kcal` : undefined
+        },
+        micronutrients: {
+          sodium: formData.sodium ? `${formData.sodium}mg` : undefined,
+          potassium: formData.potassium ? `${formData.potassium}mg` : undefined,
+          calcium: formData.calcium ? `${formData.calcium}mg` : undefined,
+          iron: formData.iron ? `${formData.iron}mg` : undefined,
+          zinc: formData.zinc ? `${formData.zinc}mg` : undefined,
+          magnesium: formData.magnesium ? `${formData.magnesium}mg` : undefined,
+        },
+        vitamins: {
+          vitaminB12: formData.vitamin_b12 ? `${formData.vitamin_b12}µg` : undefined,
+          vitaminD: formData.vitamin_d ? `${formData.vitamin_d}IU` : undefined,
+          vitaminC: formData.vitamin_c ? `${formData.vitamin_c}mg` : undefined,
+          folate: formData.folate ? `${formData.folate}µg` : undefined,
+        }
       }
 
-      // Add macronutrients if any are provided (backend expects 'macros')
-      const macros: any = {}
-      if (formData.protein) macros.protein = parseFloat(formData.protein)
-      if (formData.carbs) macros.carbs = parseFloat(formData.carbs)
-      if (formData.fat) macros.fat = parseFloat(formData.fat)
-      if (formData.fiber) macros.fiber = parseFloat(formData.fiber)
-      if (formData.calories) macros.calories = parseFloat(formData.calories)
-
-      if (Object.keys(macros).length > 0) {
-        conditionData.macros = macros
+      // Cleanup undefined values to avoid backend issues
+      if (backendData.macronutrients) {
+        Object.keys(backendData.macronutrients).forEach(key =>
+          backendData.macronutrients[key] === undefined && delete backendData.macronutrients[key])
+        if (Object.keys(backendData.macronutrients).length === 0) delete backendData.macronutrients
       }
-
-      // Add micronutrients if any are provided (backend expects 'micros')
-      const micros: any = {}
-      if (formData.sodium) micros.sodium = parseFloat(formData.sodium)
-      if (formData.potassium) micros.potassium = parseFloat(formData.potassium)
-      if (formData.calcium) micros.calcium = parseFloat(formData.calcium)
-      if (formData.zinc) micros.zinc = parseFloat(formData.zinc)
-      if (formData.magnesium) micros.magnesium = parseFloat(formData.magnesium)
-      if (formData.iron) micros.iron = parseFloat(formData.iron)
-      if (formData.vitamin_b12) micros.vitamin_b12 = parseFloat(formData.vitamin_b12)
-      if (formData.vitamin_d) micros.vitamin_d = parseFloat(formData.vitamin_d)
-      if (formData.vitamin_c) micros.vitamin_c = parseFloat(formData.vitamin_c)
-      if (formData.folate) micros.folate = parseFloat(formData.folate)
-
-      if (Object.keys(micros).length > 0) {
-        conditionData.micros = micros
+      if (backendData.micronutrients) {
+        Object.keys(backendData.micronutrients).forEach(key =>
+          backendData.micronutrients[key] === undefined && delete backendData.micronutrients[key])
+        if (Object.keys(backendData.micronutrients).length === 0) delete backendData.micronutrients
+      }
+      if (backendData.vitamins) {
+        Object.keys(backendData.vitamins).forEach(key =>
+          backendData.vitamins[key] === undefined && delete backendData.vitamins[key])
+        if (Object.keys(backendData.vitamins).length === 0) delete backendData.vitamins
       }
 
       if (selectedCondition) {
         // UPDATE existing condition
-        console.log('🔄 Updating condition:', selectedCondition.id, conditionData)
+        console.log('🔄 Updating condition via proxy:', selectedCondition.id, backendData)
 
-        const response = await fetch(`https://aroma-db-six.vercel.app/api/condition/${selectedCondition.id}`, {
+        const response = await fetch(`/api/conditions/${selectedCondition.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(conditionData),
+          body: JSON.stringify(backendData),
         })
 
         if (response.ok) {
-          const result = await response.json()
           toast({
             title: "✅ Condition Updated",
-            description: `${conditionData.name} has been successfully updated`,
+            description: `${backendData.name} has been successfully updated`,
             variant: "default",
             duration: 4000,
           })
@@ -237,21 +231,29 @@ export default function ConditionsManagement() {
         }
       } else {
         // CREATE new condition
-        console.log('➕ Creating condition:', conditionData)
+        console.log('➕ Creating condition via proxy:', backendData)
 
-        const response = await fetch('https://aroma-db-six.vercel.app/api/condition/create', {
+        // Mapping to proxy-compatible structure (which expects conditionName)
+        const proxyCreateData = {
+          conditionName: backendData.name,
+          description: backendData.description,
+          macronutrients: backendData.macronutrients,
+          micronutrients: backendData.micronutrients,
+          vitamins: backendData.vitamins
+        }
+
+        const response = await fetch('/api/conditions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(conditionData),
+          body: JSON.stringify(proxyCreateData),
         })
 
         if (response.ok) {
-          const result = await response.json()
           toast({
             title: "✅ Condition Created",
-            description: `${conditionData.name} has been successfully created`,
+            description: `${backendData.name} has been successfully created`,
             variant: "default",
             duration: 4000,
           })
@@ -280,33 +282,68 @@ export default function ConditionsManagement() {
     }
   }
 
-  const handleEdit = (condition: Condition) => {
-    setFormData({
-      conditionName: condition.conditionName,
-      description: condition.description || "",
-      protein: condition.macronutrients?.protein?.toString() || "",
-      carbs: condition.macronutrients?.carbs?.toString() || "",
-      fat: condition.macronutrients?.fat?.toString() || "",
-      fiber: condition.macronutrients?.fiber?.toString() || "",
-      calories: condition.macronutrients?.calories?.toString() || "",
-      sodium: condition.micronutrients?.sodium?.toString() || "",
-      potassium: condition.micronutrients?.potassium?.toString() || "",
-      calcium: condition.micronutrients?.calcium?.toString() || "",
-      zinc: condition.micronutrients?.zinc?.toString() || "",
-      magnesium: condition.micronutrients?.magnesium?.toString() || "",
-      iron: condition.micronutrients?.iron?.toString() || "",
-      vitamin_b12: condition.micronutrients?.vitamin_b12?.toString() || "",
-      vitamin_d: condition.micronutrients?.vitamin_d?.toString() || "",
-      vitamin_c: condition.micronutrients?.vitamin_c?.toString() || "",
-      folate: condition.micronutrients?.folate?.toString() || "",
-    })
+  const handleEdit = async (condition: Condition) => {
     setSelectedCondition(condition)
-    setShowEditDialog(true)
+    setLoading(true)
+
+    try {
+      // Fetch full details for editing
+      const response = await fetch(`/api/conditions/${condition.id}`)
+      const result = await response.json()
+
+      const fullCondition = result.success && result.data ? result.data : condition
+
+      setFormData({
+        conditionName: fullCondition.conditionName,
+        description: fullCondition.description || "",
+        protein: fullCondition.macronutrients?.protein?.toString() || fullCondition.macros?.protein?.toString() || "",
+        carbs: fullCondition.macronutrients?.carbs?.toString() || fullCondition.macros?.carbs?.toString() || "",
+        fat: fullCondition.macronutrients?.fat?.toString() || fullCondition.macros?.fat?.toString() || "",
+        fiber: fullCondition.macronutrients?.fiber?.toString() || fullCondition.macros?.fiber?.toString() || "",
+        calories: fullCondition.macronutrients?.calories?.toString() || fullCondition.macros?.calories?.toString() || "",
+        sodium: fullCondition.micronutrients?.sodium?.toString() || fullCondition.micros?.sodium?.toString() || "",
+        potassium: fullCondition.micronutrients?.potassium?.toString() || fullCondition.micros?.potassium?.toString() || "",
+        calcium: fullCondition.micronutrients?.calcium?.toString() || fullCondition.micros?.calcium?.toString() || "",
+        zinc: fullCondition.micronutrients?.zinc?.toString() || fullCondition.micros?.zinc?.toString() || "",
+        magnesium: fullCondition.micronutrients?.magnesium?.toString() || fullCondition.micros?.magnesium?.toString() || "",
+        iron: fullCondition.micronutrients?.iron?.toString() || fullCondition.micros?.iron?.toString() || "",
+        vitamin_b12: fullCondition.micronutrients?.vitamin_b12?.toString() || fullCondition.micros?.vitamin_b12?.toString() || fullCondition.vitamins?.vitaminB12?.toString() || "",
+        vitamin_d: fullCondition.micronutrients?.vitamin_d?.toString() || fullCondition.micros?.vitamin_d?.toString() || fullCondition.vitamins?.vitaminD?.toString() || "",
+        vitamin_c: fullCondition.micronutrients?.vitamin_c?.toString() || fullCondition.micros?.vitamin_c?.toString() || fullCondition.vitamins?.vitaminC?.toString() || "",
+        folate: fullCondition.micronutrients?.folate?.toString() || fullCondition.micros?.folate?.toString() || fullCondition.vitamins?.folate?.toString() || "",
+      })
+      setShowEditDialog(true)
+    } catch (error) {
+      console.error('Error fetching condition details for edit:', error)
+      // Fallback to partial data if fetch fails
+      setFormData({
+        conditionName: condition.conditionName,
+        description: condition.description || "",
+        protein: "", carbs: "", fat: "", fiber: "", calories: "",
+        sodium: "", potassium: "", calcium: "", zinc: "", magnesium: "", iron: "",
+        vitamin_b12: "", vitamin_d: "", vitamin_c: "", folate: ""
+      })
+      setShowEditDialog(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleView = (condition: Condition) => {
+  const handleView = async (condition: Condition) => {
     setSelectedCondition(condition)
     setShowViewDialog(true)
+
+    try {
+      // Fetch full details for viewing
+      const response = await fetch(`/api/conditions/${condition.id}`)
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        setSelectedCondition(result.data)
+      }
+    } catch (error) {
+      console.error('Error fetching condition details for view:', error)
+    }
   }
 
   const handleDelete = async () => {
@@ -315,7 +352,7 @@ export default function ConditionsManagement() {
     try {
       const conditionName = conditions.find(c => c.id === conditionToDelete)?.conditionName
 
-      const response = await fetch(`https://aroma-db-six.vercel.app/api/condition/${conditionToDelete}`, {
+      const response = await fetch(`/api/conditions/${conditionToDelete}`, {
         method: 'DELETE',
       })
 
@@ -892,172 +929,127 @@ export default function ConditionsManagement() {
               </div>
 
               {/* Macronutrients - Only show if any are specified */}
-              {(selectedCondition.macronutrients && Object.values(selectedCondition.macronutrients).some(value => value !== undefined && value !== null && value !== 0)) && (
-                <div>
-                  <h4 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2 border-b border-gray-200 pb-2">
-                    <span className="text-sm">🍎</span>
-                    <span>Macronutrients (Daily Recommended Values)</span>
-                  </h4>
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
-                    {selectedCondition.macronutrients?.protein && selectedCondition.macronutrients.protein > 0 && (
-                      <div className="bg-green-50 p-3 rounded-lg border border-green-200 text-center min-w-[120px]">
-                        <div className="text-xs font-medium text-green-700 mb-1">Protein</div>
-                        <div className="text-lg font-bold text-green-600">
-                          {selectedCondition.macronutrients.protein}<span className="text-xs ml-0.5">g</span>
-                        </div>
-                      </div>
-                    )}
-                    {selectedCondition.macronutrients?.carbs && selectedCondition.macronutrients.carbs > 0 && (
-                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-center min-w-[120px]">
-                        <div className="text-xs font-medium text-blue-700 mb-1">Carbohydrates</div>
-                        <div className="text-lg font-bold text-blue-600">
-                          {selectedCondition.macronutrients.carbs}<span className="text-xs ml-0.5">g</span>
-                        </div>
-                      </div>
-                    )}
-                    {selectedCondition.macronutrients?.fat && selectedCondition.macronutrients.fat > 0 && (
-                      <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 text-center min-w-[120px]">
-                        <div className="text-xs font-medium text-yellow-700 mb-1">Fat</div>
-                        <div className="text-lg font-bold text-yellow-600">
-                          {selectedCondition.macronutrients.fat}<span className="text-xs ml-0.5">g</span>
-                        </div>
-                      </div>
-                    )}
-                    {selectedCondition.macronutrients?.fiber && selectedCondition.macronutrients.fiber > 0 && (
-                      <div className="bg-orange-50 p-3 rounded-lg border border-orange-200 text-center min-w-[120px]">
-                        <div className="text-xs font-medium text-orange-700 mb-1">Fiber</div>
-                        <div className="text-lg font-bold text-orange-600">
-                          {selectedCondition.macronutrients.fiber}<span className="text-xs ml-0.5">g</span>
-                        </div>
-                      </div>
-                    )}
-                    {selectedCondition.macronutrients?.calories && selectedCondition.macronutrients.calories > 0 && (
-                      <div className="bg-red-50 p-3 rounded-lg border border-red-200 text-center min-w-[120px]">
-                        <div className="text-xs font-medium text-red-700 mb-1">Calories</div>
-                        <div className="text-lg font-bold text-red-600">
-                          {selectedCondition.macronutrients.calories}<span className="text-xs ml-0.5">kcal</span>
-                        </div>
-                      </div>
-                    )}
+              {((selectedCondition.macronutrients && Object.values(selectedCondition.macronutrients).some(value => value !== undefined && value !== null && value !== 0 && value !== "")) ||
+                (selectedCondition.macros && Object.values(selectedCondition.macros).some(value => value !== undefined && value !== null && value !== 0 && value !== ""))) && (
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2 border-b border-gray-200 pb-2">
+                      <span className="text-sm">🍎</span>
+                      <span>Macronutrients (Daily Recommended Values)</span>
+                    </h4>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
+                      {['protein', 'carbs', 'fat', 'fiber', 'calories'].map((key) => {
+                        const value = selectedCondition.macronutrients?.[key] || selectedCondition.macros?.[key];
+                        if (!value || value === 0) return null;
+
+                        const unit = key === 'calories' ? 'kcal' : 'g';
+                        // If value is a string and already contains the unit, don't append it again
+                        const displayValue = typeof value === 'string' && value.toLowerCase().includes(unit.toLowerCase())
+                          ? value.replace(new RegExp(unit, 'i'), '')
+                          : value;
+
+                        const colors: any = {
+                          protein: 'bg-green-50 border-green-200 text-green-700 font-bold text-green-600',
+                          carbs: 'bg-blue-50 border-blue-200 text-blue-700 font-bold text-blue-600',
+                          fat: 'bg-yellow-50 border-yellow-200 text-yellow-700 font-bold text-yellow-600',
+                          fiber: 'bg-orange-50 border-orange-200 text-orange-700 font-bold text-orange-600',
+                          calories: 'bg-red-50 border-red-200 text-red-700 font-bold text-red-600'
+                        };
+
+                        const labels: any = {
+                          protein: 'Protein',
+                          carbs: 'Carbohydrates',
+                          fat: 'Fat',
+                          fiber: 'Fiber',
+                          calories: 'Calories'
+                        };
+
+                        return (
+                          <div key={key} className={`${colors[key].split(' ').slice(0, 2).join(' ')} p-3 rounded-lg border text-center min-w-[120px]`}>
+                            <div className={`text-xs font-medium ${colors[key].split(' ')[2]} mb-1`}>{labels[key]}</div>
+                            <div className={`text-lg font-bold ${colors[key].split(' ').slice(3).join(' ')}`}>
+                              {displayValue}<span className="text-xs ml-0.5">{unit}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Micronutrients - Only show if any are specified */}
-              {(selectedCondition.micronutrients && Object.values(selectedCondition.micronutrients).some(value => value !== undefined && value !== null)) && (
-                <div>
-                  <h4 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2 border-b border-gray-200 pb-2">
-                    <span className="text-sm">🧪</span>
-                    <span>Micronutrients (Vitamins & Minerals)</span>
-                  </h4>
+              {/* Micronutrients & Vitamins */}
+              {((selectedCondition.micronutrients && Object.values(selectedCondition.micronutrients).some(value => value !== undefined && value !== null)) ||
+                (selectedCondition.vitamins && Object.values(selectedCondition.vitamins).some(value => value !== undefined && value !== null))) && (
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2 border-b border-gray-200 pb-2">
+                      <span className="text-sm">🧪</span>
+                      <span>Micronutrients (Vitamins & Minerals)</span>
+                    </h4>
 
-                  {/* Minerals Section - Only show if any minerals are specified */}
-                  {(selectedCondition.micronutrients?.sodium !== undefined && selectedCondition.micronutrients.sodium !== null ||
-                    selectedCondition.micronutrients?.potassium !== undefined && selectedCondition.micronutrients.potassium !== null ||
-                    selectedCondition.micronutrients?.calcium !== undefined && selectedCondition.micronutrients.calcium !== null ||
-                    selectedCondition.micronutrients?.zinc !== undefined && selectedCondition.micronutrients.zinc !== null ||
-                    selectedCondition.micronutrients?.magnesium !== undefined && selectedCondition.micronutrients.magnesium !== null ||
-                    selectedCondition.micronutrients?.iron !== undefined && selectedCondition.micronutrients.iron !== null) && (
-                      <div className="mb-4">
-                        <h5 className="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">Minerals</h5>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-3">
-                          {(selectedCondition.micronutrients?.sodium !== undefined && selectedCondition.micronutrients.sodium !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Sodium</div>
+                    {/* Minerals Section */}
+                    <div className="mb-4">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">Minerals</h5>
+                      <div className="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-3">
+                        {[
+                          { key: 'sodium', label: 'Sodium', unit: 'mg' },
+                          { key: 'potassium', label: 'Potassium', unit: 'mg' },
+                          { key: 'calcium', label: 'Calcium', unit: 'mg' },
+                          { key: 'iron', label: 'Iron', unit: 'mg' },
+                          { key: 'zinc', label: 'Zinc', unit: 'mg' },
+                          { key: 'magnesium', fallbackKey: 'Magnesium', label: 'Magnesium', unit: 'mg' },
+                        ].map((item) => {
+                          const value = selectedCondition.micronutrients?.[item.key] ||
+                            selectedCondition.micros?.[item.key] ||
+                            (item.fallbackKey ? (selectedCondition.micronutrients?.[item.fallbackKey] || selectedCondition.micros?.[item.fallbackKey]) : null);
+                          if (!value) return null;
+
+                          const displayValue = typeof value === 'string' && value.toLowerCase().includes(item.unit.toLowerCase())
+                            ? value.replace(new RegExp(item.unit, 'i'), '')
+                            : value;
+
+                          return (
+                            <div key={item.key} className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
+                              <div className="text-xs font-medium text-purple-700 mb-1">{item.label}</div>
                               <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.sodium}<span className="text-xs ml-0.5">mg</span>
+                                {displayValue}<span className="text-xs ml-0.5">{item.unit}</span>
                               </div>
                             </div>
-                          )}
-                          {(selectedCondition.micronutrients?.potassium !== undefined && selectedCondition.micronutrients.potassium !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Potassium</div>
-                              <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.potassium}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.calcium !== undefined && selectedCondition.micronutrients.calcium !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Calcium</div>
-                              <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.calcium}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.zinc !== undefined && selectedCondition.micronutrients.zinc !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Zinc</div>
-                              <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.zinc}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.magnesium !== undefined && selectedCondition.micronutrients.magnesium !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Magnesium</div>
-                              <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.magnesium}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.iron !== undefined && selectedCondition.micronutrients.iron !== null) && (
-                            <div className="bg-purple-50 p-3 rounded border border-purple-200 text-center min-w-[100px]">
-                              <div className="text-xs font-medium text-purple-700 mb-1">Iron</div>
-                              <div className="text-sm font-bold text-purple-600">
-                                {selectedCondition.micronutrients.iron}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
 
-                  {/* Vitamins Section - Only show if any vitamins are specified */}
-                  {(selectedCondition.micronutrients?.vitamin_b12 !== undefined && selectedCondition.micronutrients.vitamin_b12 !== null ||
-                    selectedCondition.micronutrients?.vitamin_d !== undefined && selectedCondition.micronutrients.vitamin_d !== null ||
-                    selectedCondition.micronutrients?.vitamin_c !== undefined && selectedCondition.micronutrients.vitamin_c !== null ||
-                    selectedCondition.micronutrients?.folate !== undefined && selectedCondition.micronutrients.folate !== null) && (
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">Vitamins</h5>
-                        <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
-                          {(selectedCondition.micronutrients?.vitamin_b12 !== undefined && selectedCondition.micronutrients.vitamin_b12 !== null) && (
-                            <div className="bg-indigo-50 p-3 rounded border border-indigo-200 text-center min-w-[120px]">
-                              <div className="text-xs font-medium text-indigo-700 mb-1">Vitamin B12</div>
+                    {/* Vitamins Section */}
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">Vitamins</h5>
+                      <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-3">
+                        {[
+                          { key: 'vitaminB12', fallbackKey: 'vitamin_b12', label: 'Vitamin B12', unit: 'µg' },
+                          { key: 'vitaminD', fallbackKey: 'vitamin_d', label: 'Vitamin D', unit: 'IU' },
+                          { key: 'vitaminC', fallbackKey: 'vitamin_c', label: 'Vitamin C', unit: 'mg' },
+                          { key: 'folate', fallbackKey: 'folate', label: 'Folate', unit: 'µg' },
+                        ].map((item) => {
+                          const value = selectedCondition.vitamins?.[item.key] ||
+                            selectedCondition.micronutrients?.[item.fallbackKey] ||
+                            selectedCondition.micros?.[item.fallbackKey];
+                          if (!value) return null;
+
+                          const displayValue = typeof value === 'string' && value.toLowerCase().includes(item.unit.toLowerCase())
+                            ? value.replace(new RegExp(item.unit, 'i'), '')
+                            : value;
+
+                          return (
+                            <div key={item.key} className="bg-indigo-50 p-3 rounded border border-indigo-200 text-center min-w-[120px]">
+                              <div className="text-xs font-medium text-indigo-700 mb-1">{item.label}</div>
                               <div className="text-sm font-bold text-indigo-600">
-                                {selectedCondition.micronutrients.vitamin_b12}<span className="text-xs ml-0.5">µg</span>
+                                {displayValue}<span className="text-xs ml-0.5">{item.unit}</span>
                               </div>
                             </div>
-                          )}
-                          {(selectedCondition.micronutrients?.vitamin_d !== undefined && selectedCondition.micronutrients.vitamin_d !== null) && (
-                            <div className="bg-indigo-50 p-3 rounded border border-indigo-200 text-center min-w-[120px]">
-                              <div className="text-xs font-medium text-indigo-700 mb-1">Vitamin D</div>
-                              <div className="text-sm font-bold text-indigo-600">
-                                {selectedCondition.micronutrients.vitamin_d}<span className="text-xs ml-0.5">IU</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.vitamin_c !== undefined && selectedCondition.micronutrients.vitamin_c !== null) && (
-                            <div className="bg-indigo-50 p-3 rounded border border-indigo-200 text-center min-w-[120px]">
-                              <div className="text-xs font-medium text-indigo-700 mb-1">Vitamin C</div>
-                              <div className="text-sm font-bold text-indigo-600">
-                                {selectedCondition.micronutrients.vitamin_c}<span className="text-xs ml-0.5">mg</span>
-                              </div>
-                            </div>
-                          )}
-                          {(selectedCondition.micronutrients?.folate !== undefined && selectedCondition.micronutrients.folate !== null) && (
-                            <div className="bg-indigo-50 p-3 rounded border border-indigo-200 text-center min-w-[120px]">
-                              <div className="text-xs font-medium text-indigo-700 mb-1">Folate</div>
-                              <div className="text-sm font-bold text-indigo-600">
-                                {selectedCondition.micronutrients.folate}<span className="text-xs ml-0.5">µg</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
-                </div>
-              )}
+                    </div>
+                  </div>
+                )}
 
               {/* Show message if no nutritional data is available */}
               {(!selectedCondition.macronutrients || !Object.values(selectedCondition.macronutrients).some(value => value !== undefined && value !== null)) &&

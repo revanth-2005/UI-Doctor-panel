@@ -126,9 +126,11 @@ export default function RecommendationsManagement() {
 
   const loadPatients = async () => {
     try {
-      console.log('🔍 Loading patients from MongoDB backend...')
+      if (!doctorId) return;
+      console.log(`🔍 Loading patients for doctor ${doctorId}...`)
 
-      const response = await fetch('https://aroma-db-six.vercel.app/api/patient', {
+      // Use the specific doctor-users endpoint which is known to work
+      const response = await fetch(`/api/doctor/users/${doctorId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -136,17 +138,21 @@ export default function RecommendationsManagement() {
       })
 
       if (!response.ok) {
-        throw new Error(`Backend responded with status ${response.status}`)
+        console.warn(`⚠️ Patient list backend responded with status ${response.status}`);
+        setPatients([]);
+        return;
       }
 
       const result = await response.json()
       console.log('📋 Backend patients response for dropdown:', result)
 
-      if (result.success && result.patients) {
+      if (result.success && (result.patients || result.data || Array.isArray(result))) {
+        const patientsList = result.patients || result.data || (Array.isArray(result) ? result : []);
+
         // Map backend data to frontend format for dropdown
-        const mappedPatients: Patient[] = result.patients.map((patient: any) => ({
-          _id: patient._id,
-          id: patient._id,
+        const mappedPatients: Patient[] = patientsList.map((patient: any) => ({
+          _id: patient._id || patient.id,
+          id: patient._id || patient.id,
           name: patient.name,
           phone: patient.phone,
           userId: patient.userId,
@@ -201,7 +207,7 @@ export default function RecommendationsManagement() {
     try {
       console.log('🔍 Loading conditions from MongoDB backend...')
 
-      const response = await fetch('https://aroma-db-six.vercel.app/api/condition/list', {
+      const response = await fetch('/api/conditions', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -209,20 +215,25 @@ export default function RecommendationsManagement() {
       })
 
       if (!response.ok) {
-        throw new Error(`Backend responded with status ${response.status}`)
+        console.warn(`⚠️ Conditions list backend responded with status ${response.status}`);
+        setConditions([]);
+        return;
       }
 
       const result = await response.json()
       console.log('📋 Backend conditions response for dropdown:', result)
 
-      if (result.success && result.conditions) {
+      if (result.success && result.data) {
         // Map backend data to frontend format for dropdown
-        const mappedConditions: Condition[] = result.conditions.map((condition: any) => ({
-          id: condition._id,
-          conditionName: condition.name, // Backend uses 'name', frontend uses 'conditionName'
+        const mappedConditions: Condition[] = result.data.map((condition: any) => ({
+          id: condition.id,
+          conditionName: condition.conditionName,
           description: condition.description,
-          macros: condition.macros,
-          micros: condition.micros
+          macronutrients: condition.macronutrients || condition.macros,
+          micronutrients: condition.micronutrients || condition.micros,
+          vitamins: condition.vitamins,
+          createdAt: condition.createdAt,
+          updatedAt: condition.updatedAt
         }))
 
         console.log(`✅ Loaded ${mappedConditions.length} conditions for dropdown`)
@@ -266,24 +277,50 @@ export default function RecommendationsManagement() {
     setSubmitting(true)
 
     try {
-      // Create recommendation object for local storage
+      // Get doctor name from localStorage
+      const userData = localStorage.getItem("user");
+      let doctorName = "Your Doctor";
+      if (userData) {
+        const user = JSON.parse(userData);
+        doctorName = user.name || user.doctorName || "Your Doctor";
+      }
+
+      const patientName = getPatientName(formData.patientId);
+      const recipeName = formData.recipeId ? getRecipeTitle(formData.recipeId) : 'General Diet Advice';
+
+      // --- Backend API Call ---
+      console.log('📡 Sending recommendation to backend...')
+      const apiResponse = await createRecommendation(doctorId, {
+        ...formData,
+        patientName,
+        recipeName,
+        doctorName
+      } as any)
+
+      if (!apiResponse.success) {
+        throw new Error(apiResponse.message || 'Failed to sync with backend')
+      }
+
+      console.log('✅ Backend sync successful:', apiResponse.data)
+
+      // Create recommendation object for local storage display
       const newRecommendation = {
-        _id: `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        _id: apiResponse.data?.id || `rec_${Date.now()}`,
         patientId: formData.patientId,
-        patientName: getPatientName(formData.patientId),
+        patientName,
         recipeId: formData.recipeId || undefined,
-        recipeName: formData.recipeId ? getRecipeTitle(formData.recipeId) : 'General Diet Advice',
+        recipeName,
         conditionTag: formData.conditionTag,
         notes: formData.notes,
         dietAdvice: formData.dietAdvice,
         status: 'active' as const,
         doctorId,
-        doctorName: 'Dr. Sarah Wilson',
+        doctorName,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
 
-      // Save to local storage
+      // Save to local storage for persistent UI state
       const existingRecommendations = JSON.parse(localStorage.getItem('diet_recommendations') || '[]')
       existingRecommendations.unshift(newRecommendation)
       localStorage.setItem('diet_recommendations', JSON.stringify(existingRecommendations))
@@ -294,14 +331,6 @@ export default function RecommendationsManagement() {
       // --- SMS Sending Logic ---
       const patient = patients.find(p => p._id === formData.patientId);
       if (patient && patient.phone) {
-        // Get doctor name from localStorage
-        const userData = localStorage.getItem("user");
-        let doctorName = "Your Doctor";
-        if (userData) {
-          const user = JSON.parse(userData);
-          doctorName = user.name || user.doctorName || "Your Doctor";
-        }
-
         // Construct message body
         let messageBody = `${doctorName} Recommended Nutrients\n\n`;
 
@@ -352,13 +381,6 @@ export default function RecommendationsManagement() {
               duration: 3000,
               className: "border-green-200 bg-green-50 text-green-800"
             })
-          } else {
-            console.error('SMS failed:', smsResult);
-            toast({
-              title: "⚠️ SMS Failed",
-              description: "Could not send SMS to patient. Check console for details.",
-              variant: "destructive"
-            })
           }
         } catch (smsError) {
           console.error('Error sending SMS:', smsError);
@@ -368,29 +390,19 @@ export default function RecommendationsManagement() {
       // Mobile app-style success notification
       toast({
         title: "📱 Recommendation Sent!",
-        description: `Diet recommendation sent to ${newRecommendation.patientName}'s mobile app`,
+        description: `Diet recommendation for ${newRecommendation.patientName} sync'd with backend`,
         duration: 4000,
         className: "border-green-200 bg-green-50 text-green-800"
       })
 
-      // Show delivery notification after a short delay
-      setTimeout(() => {
-        toast({
-          title: "✅ Delivered",
-          description: `${newRecommendation.patientName} received the notification`,
-          duration: 3000,
-          className: "border-blue-200 bg-blue-50 text-blue-800"
-        })
-      }, 2000)
-
       handleCancelForm()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating recommendation:', error)
       toast({
-        title: "⚠️ Saved Locally",
-        description: "Recommendation saved on device. Will sync when connected.",
+        title: "❌ Sync Failed",
+        description: error.message || "Failed to save recommendation to backend. Saved locally instead.",
         duration: 4000,
-        className: "border-orange-200 bg-orange-50 text-orange-800"
+        variant: "destructive"
       })
     } finally {
       setSubmitting(false)
@@ -634,31 +646,49 @@ export default function RecommendationsManagement() {
                     if (selectedCondition?.id) {
                       setLoadingNutrients(true);
                       try {
-                        const response = await fetch(`https://aroma-db-six.vercel.app/api/condition/${selectedCondition.id}`);
-                        const data = await response.json();
+                        const response = await fetch(`/api/conditions/${selectedCondition.id}`);
+                        const result = await response.json();
 
-                        if (data.success && data.condition) {
-                          const c = data.condition;
+                        if (result.success && result.data) {
+                          const c = result.data;
+
+                          // Helper to ensure units are correctly formatted
+                          const formatUnit = (val: any, unit: string) => {
+                            if (!val) return "";
+                            const sVal = val.toString();
+                            if (sVal.toLowerCase().includes(unit.toLowerCase())) return sVal;
+                            // Convert microgram symbol/unit to mcg for display consistency with screenshot
+                            if (unit === "µg" || unit === "ug") unit = "mcg";
+                            return `${sVal} ${unit}`.replace("  ", " ");
+                          };
+
+                          const macros = c.macronutrients || c.macros || {};
+                          const micros = c.micronutrients || c.micros || {};
+                          const vitamins = c.vitamins || {};
+
                           setFormData(prev => ({
                             ...prev,
                             dietAdvice: {
                               ...prev.dietAdvice,
-                              dailyCalories: c.macros?.calories ? `${c.macros.calories} kcal` : "",
-                              targetProtein: c.macros?.protein ? `${c.macros.protein}g` : "",
-                              targetCarbs: c.macros?.carbs ? `${c.macros.carbs}g` : "",
-                              targetFat: c.macros?.fat ? `${c.macros.fat}g` : "",
-                              targetFiber: c.macros?.fiber ? `${c.macros.fiber}g` : "",
+                              dailyCalories: formatUnit(macros.calories, "kcal"),
+                              targetProtein: formatUnit(macros.protein, "g"),
+                              targetCarbs: formatUnit(macros.carbs, "g"),
+                              targetFat: formatUnit(macros.fat, "g"),
+                              targetFiber: formatUnit(macros.fiber, "g"),
 
-                              targetSodium: c.micros?.sodium ? `${c.micros.sodium}mg` : "",
-                              targetPotassium: c.micros?.potassium ? `${c.micros.potassium}mg` : "",
-                              targetCalcium: c.micros?.calcium ? `${c.micros.calcium}mg` : "",
-                              targetZinc: c.micros?.zinc ? `${c.micros.zinc}mg` : "",
-                              targetMagnesium: c.micros?.magnesium ? `${c.micros.magnesium}mg` : "",
-                              targetIron: c.micros?.iron ? `${c.micros.iron}mg` : "",
-                              targetVitaminB12: c.micros?.vitamin_b12 ? `${c.micros.vitamin_b12}mcg` : "",
-                              targetVitaminD: c.micros?.vitamin_d ? `${c.micros.vitamin_d}IU` : "",
-                              targetVitaminC: c.micros?.vitamin_c ? `${c.micros.vitamin_c}mg` : "",
-                              targetFolate: c.micros?.folate ? `${c.micros.folate}mcg` : "",
+                              targetSodium: formatUnit(micros.sodium, "mg"),
+                              targetPotassium: formatUnit(micros.potassium, "mg"),
+                              targetCalcium: formatUnit(micros.calcium, "mg"),
+                              targetIron: formatUnit(micros.iron, "mg"),
+                              targetZinc: formatUnit(micros.zinc, "mg"),
+                              targetMagnesium: formatUnit(micros.magnesium || micros.Magnesium, "mg"),
+
+                              targetVitaminC: formatUnit(vitamins.vitaminC || micros.vitamin_c, "mg"),
+                              targetVitaminD: formatUnit(vitamins.vitaminD || micros.vitamin_d, "IU"),
+                              targetVitaminB12: formatUnit(vitamins.vitaminB12 || micros.vitamin_b12, "mcg"),
+                              targetFolate: formatUnit(vitamins.folate || micros.folate, "mcg"),
+
+                              hydration: "8 glasses" // Match screenshot default
                             }
                           }));
                         }

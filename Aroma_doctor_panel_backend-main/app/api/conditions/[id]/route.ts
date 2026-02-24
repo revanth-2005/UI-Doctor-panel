@@ -19,8 +19,11 @@ export async function GET(
       }, { status: 400 })
     }
 
-    // Send request to MongoDB backend
-    const backendResponse = await fetch(`${config.mongodb.backendUrl}/api/condition/${conditionId}`, {
+    // Use the 'read' endpoint to get full details for a specific condition
+    const backendUrl = `${config.mongodb.backendUrl}/api/condition/read`
+    console.log('🔗 Fetching condition details from read backend:', backendUrl)
+
+    const backendResponse = await fetch(backendUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -32,25 +35,36 @@ export async function GET(
     if (!backendResponse.ok) {
       return NextResponse.json({
         success: false,
-        message: backendResult.message || 'Failed to fetch condition from backend'
+        message: backendResult.message || 'Failed to fetch conditions from backend'
       }, { status: backendResponse.status })
     }
 
-    // Map backend response to frontend format
+    // Find the specific condition by ID in the list
+    const conditions = backendResult.data || []
+    const resultData = conditions.find((c: any) => (c._id === conditionId || c.id === conditionId))
+
+    if (!resultData) {
+      return NextResponse.json({
+        success: false,
+        message: 'Condition not found'
+      }, { status: 404 })
+    }
+
     const condition = {
-      id: backendResult.condition._id || backendResult.condition.id,
-      conditionName: backendResult.condition.conditionName,
-      description: backendResult.condition.description,
-      macronutrients: backendResult.condition.macronutrients,
-      micronutrients: backendResult.condition.micronutrients,
-      createdAt: backendResult.condition.createdAt,
-      updatedAt: backendResult.condition.updatedAt
+      id: resultData._id || resultData.id,
+      conditionName: resultData.name || resultData.conditionName,
+      description: resultData.description,
+      macronutrients: resultData.macronutrients || resultData.macros,
+      micronutrients: resultData.micronutrients || resultData.micros,
+      vitamins: resultData.vitamins,
+      createdAt: resultData.createdAt,
+      updatedAt: resultData.updatedAt
     }
 
     return NextResponse.json({
       success: true,
       data: condition,
-      message: backendResult.message || 'Condition retrieved successfully'
+      message: 'Condition details retrieved successfully'
     })
 
   } catch (error) {
@@ -82,7 +96,10 @@ export async function PUT(
     }
 
     // Send update request to MongoDB backend
-    const backendResponse = await fetch(`${config.mongodb.backendUrl}/api/condition/${conditionId}`, {
+    const backendUrl = `${config.mongodb.backendUrl}/api/condition/update/${conditionId}`
+    console.log('🔄 Proxying Update to Backend:', backendUrl)
+
+    const backendResponse = await fetch(backendUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -100,14 +117,17 @@ export async function PUT(
     }
 
     // Map backend response to frontend format
+    const resultData = backendResult.data || backendResult.condition || {}
+
     const updatedCondition = {
-      id: backendResult.condition._id || backendResult.condition.id,
-      conditionName: backendResult.condition.conditionName,
-      description: backendResult.condition.description,
-      macronutrients: backendResult.condition.macronutrients,
-      micronutrients: backendResult.condition.micronutrients,
-      createdAt: backendResult.condition.createdAt,
-      updatedAt: backendResult.condition.updatedAt
+      id: resultData._id || resultData.id || conditionId,
+      conditionName: resultData.name || resultData.conditionName,
+      description: resultData.description,
+      macronutrients: resultData.macronutrients || resultData.macros,
+      micronutrients: resultData.micronutrients || resultData.micros,
+      vitamins: resultData.vitamins,
+      createdAt: resultData.createdAt,
+      updatedAt: resultData.updatedAt
     }
 
     return NextResponse.json({
@@ -144,7 +164,10 @@ export async function DELETE(
     }
 
     // Send delete request to MongoDB backend
-    const backendResponse = await fetch(`${config.mongodb.backendUrl}/api/condition/${conditionId}`, {
+    const backendUrl = `${config.mongodb.backendUrl}/api/condition/delete/${conditionId}`
+    console.log('🗑️ Proxying Delete to Backend:', backendUrl)
+
+    const backendResponse = await fetch(backendUrl, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

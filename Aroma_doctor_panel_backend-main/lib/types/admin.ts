@@ -20,6 +20,7 @@ export interface CreateDoctorRequest {
   specialization?: string
   licenseNumber?: string
   status?: 'active' | 'suspended' | 'pending'
+  password?: string
 }
 
 export interface CreateDoctorResponse {

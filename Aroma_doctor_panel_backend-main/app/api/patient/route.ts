@@ -26,7 +26,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Send request to MongoDB backend
     const backendUrl = `${config.mongodb.backendUrl}/api/patient?${backendParams.toString()}`
     console.log('🔗 Fetching patients from backend:', backendUrl)
-    
+
     const backendResponse = await fetch(backendUrl, {
       method: 'GET',
       headers: {
@@ -35,6 +35,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
 
     if (!backendResponse.ok) {
+      if (backendResponse.status === 404) {
+        console.warn('⚠️ Patient list endpoint not found on backend. Returning empty list.');
+        return NextResponse.json({
+          success: true,
+          data: { patients: [], pagination: { currentPage: 1, totalPages: 0, totalCount: 0, hasNext: false, hasPrev: false } },
+          message: 'Patient list service temporarily unavailable (404)'
+        })
+      }
       throw new Error(`Backend responded with status ${backendResponse.status}`)
     }
 
@@ -148,7 +156,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const errorMessage = backendResult.message || '';
       if (errorMessage.includes('populate') || errorMessage.includes('is not a function')) {
         console.warn('⚠️ Backend bug detected: Patient saved but response failed. Attempting recovery...');
-        
+
         try {
           // Try to fetch the patient we just created
           const recoveryResponse = await fetch(`${config.mongodb.backendUrl}/api/patient?search=${encodeURIComponent(body.phone.trim())}`);
@@ -156,10 +164,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             const recoveryResult = await recoveryResponse.json();
             if (recoveryResult.success && recoveryResult.patients) {
               const savedPatient = recoveryResult.patients.find((p: any) => p.phone === body.phone.trim());
-              
+
               if (savedPatient) {
                 console.log('✅ Recovered patient data after backend error');
-                
+
                 // Map to frontend format
                 const newPatient = {
                   _id: savedPatient._id || savedPatient.id,

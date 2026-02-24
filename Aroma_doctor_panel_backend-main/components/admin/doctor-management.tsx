@@ -25,12 +25,13 @@ export default function DoctorManagement() {
     phone: "",
     specialization: "",
     licenseNumber: "",
+    password: "",
     status: "active"
   })
   const [submitting, setSubmitting] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [doctorToDelete, setDoctorToDelete] = useState<{id: string, name: string} | null>(null)
+  const [doctorToDelete, setDoctorToDelete] = useState<{ id: string, name: string } | null>(null)
   const [createdDoctorName, setCreatedDoctorName] = useState("")
   const { toast } = useToast()
 
@@ -42,21 +43,18 @@ export default function DoctorManagement() {
   const loadDoctors = async () => {
     setLoading(true)
     try {
-      const result = await fetchDoctors(
-        searchTerm || undefined,
-        statusFilter || undefined
-      )
-      
+      const response = await fetch(`/api/admin/doctors?search=${searchTerm}&status=${statusFilter}`)
+      const result = await response.json()
+
       if (result.success && result.data && Array.isArray(result.data)) {
         console.log('✅ Doctors loaded successfully:', result.data)
         setDoctors(result.data)
       } else {
-        console.error('Invalid doctors response:', result)
         setDoctors([])
         if (!result.success) {
           toast({
             title: "Error",
-            description: result.message,
+            description: result.message || "Failed to fetch doctors",
             variant: "destructive"
           })
         }
@@ -78,37 +76,38 @@ export default function DoctorManagement() {
     setSubmitting(true)
 
     try {
-      const result = await createDoctor(formData)
-      
+      // Use the new specialized Create Doctor API
+      const response = await fetch('/api/admin/doctors/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.doctorName,
+          email: formData.email,
+          phone: formData.phone,
+          specialization: formData.specialization,
+          licenseNumber: formData.licenseNumber,
+          password: formData.password || "123", // Default if not provided
+          status: formData.status
+        })
+      })
+
+      const result = await response.json()
+
       if (result.success) {
-        // Show success dialog with doctor's name
         setCreatedDoctorName(formData.doctorName)
         setShowSuccessDialog(true)
-        
-        // Reset form and refresh doctors list
         setFormData({
-          doctorName: "",
-          email: "",
-          phone: "",
-          specialization: "",
-          licenseNumber: "",
-          status: "active"
+          doctorName: "", email: "", phone: "",
+          specialization: "", licenseNumber: "",
+          password: "", status: "active"
         })
         setShowForm(false)
         await loadDoctors()
       } else {
-        toast({
-          title: "Error",
-          description: result.message,
-          variant: "destructive"
-        })
+        toast({ title: "Error", description: result.message, variant: "destructive" })
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      })
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" })
     } finally {
       setSubmitting(false)
     }
@@ -117,7 +116,7 @@ export default function DoctorManagement() {
   const handleStatusUpdate = async (doctorId: string, newStatus: 'active' | 'suspended' | 'pending') => {
     try {
       const result = await updateDoctorStatus(doctorId, newStatus)
-      
+
       if (result.success) {
         toast({
           title: "Success",
@@ -149,8 +148,11 @@ export default function DoctorManagement() {
     if (!doctorToDelete) return
 
     try {
-      const result = await deleteDoctor(doctorToDelete.id)
-      
+      const response = await fetch(`/api/admin/doctors/delete/${doctorToDelete.id}`, {
+        method: 'DELETE'
+      })
+      const result = await response.json()
+
       if (result.success) {
         toast({
           title: "Success",
@@ -160,7 +162,7 @@ export default function DoctorManagement() {
       } else {
         toast({
           title: "Error",
-          description: result.message,
+          description: result.message || "Failed to delete doctor",
           variant: "destructive"
         })
       }
@@ -200,7 +202,7 @@ export default function DoctorManagement() {
             Add Doctor
           </Button>
         </div>
-        
+
         {/* Search and Filter Controls */}
         <div className="flex items-center gap-4">
           <div className="flex-1">
@@ -288,6 +290,16 @@ export default function DoctorManagement() {
                 />
               </div>
               <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Leave blank for '123'"
+                />
+              </div>
+              <div>
                 <Label htmlFor="status">Status</Label>
                 <select
                   id="status"
@@ -324,23 +336,20 @@ export default function DoctorManagement() {
           <Card className="p-12 text-center text-gray-500">No doctors added yet</Card>
         ) : (
           doctors.map((doctor) => (
-            <Card key={doctor.id} className={`p-6 border-l-4 ${
-              doctor.status === 'active' ? 'border-l-blue-500' : 
-              doctor.status === 'pending' ? 'border-l-yellow-500' : 
-              'border-l-red-500'
-            } hover:shadow-lg transition-shadow`}>
+            <Card key={doctor.id} className={`p-6 border-l-4 ${doctor.status === 'active' ? 'border-l-blue-500' :
+              doctor.status === 'pending' ? 'border-l-yellow-500' :
+                'border-l-red-500'
+              } hover:shadow-lg transition-shadow`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                    doctor.status === 'active' ? 'bg-blue-100' : 
-                    doctor.status === 'pending' ? 'bg-yellow-100' : 
-                    'bg-red-100'
-                  }`}>
-                    <UserCheck className={`w-7 h-7 ${
-                      doctor.status === 'active' ? 'text-blue-600' : 
-                      doctor.status === 'pending' ? 'text-yellow-600' : 
-                      'text-red-600'
-                    }`} />
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${doctor.status === 'active' ? 'bg-blue-100' :
+                    doctor.status === 'pending' ? 'bg-yellow-100' :
+                      'bg-red-100'
+                    }`}>
+                    <UserCheck className={`w-7 h-7 ${doctor.status === 'active' ? 'text-blue-600' :
+                      doctor.status === 'pending' ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`} />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-semibold text-lg text-gray-900">{doctor.doctorName}</h3>
@@ -352,7 +361,7 @@ export default function DoctorManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleStatusUpdate(doctor.id, 
+                    onClick={() => handleStatusUpdate(doctor.id,
                       doctor.status === 'active' ? 'suspended' : 'active')}
                     className={doctor.status === 'active' ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}
                   >
@@ -423,7 +432,7 @@ export default function DoctorManagement() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="justify-center">
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => setShowSuccessDialog(false)}
               className="bg-green-600 hover:bg-green-700 px-8"
             >
@@ -439,7 +448,7 @@ export default function DoctorManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete 
+              This action cannot be undone. This will permanently delete
               <span className="font-medium text-gray-900"> {doctorToDelete?.name} </span>
               and remove their data from the system.
             </AlertDialogDescription>

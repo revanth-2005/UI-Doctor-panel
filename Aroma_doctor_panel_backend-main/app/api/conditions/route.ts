@@ -10,10 +10,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateCon
   try {
     const body = await request.json()
     console.log('📝 Creating condition with data:', body)
-    
+
     // Validate the request data
     const validation = validateConditionRequest(body)
-    
+
     if (!validation.isValid) {
       return NextResponse.json({
         success: false,
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateCon
     }
 
     const { cleanedData } = validation
-    
+
     if (!cleanedData) {
       return NextResponse.json({
         success: false,
@@ -36,12 +36,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateCon
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'accept': '*/*'
       },
       body: JSON.stringify({
-        name: cleanedData.conditionName,
-        description: cleanedData.description,
-        macros: cleanedData.macronutrients || {},
-        micros: cleanedData.micronutrients || {}
+        name: body.conditionName || body.name,
+        description: body.description,
+        macronutrients: body.macronutrients || {},
+        micronutrients: body.micronutrients || {},
+        vitamins: body.vitamins || {}
       })
     })
 
@@ -56,14 +58,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateCon
     }
 
     // Map backend response to frontend format
+    // The new backend returns data in a 'data' object with an 'id'
+    const resultData = backendResult.data || backendResult.condition || {}
+
     const newCondition = {
-      id: backendResult.condition._id || backendResult.condition.id,
-      conditionName: backendResult.condition.name || backendResult.condition.conditionName,
-      description: backendResult.condition.description,
-      macronutrients: backendResult.condition.macros || backendResult.condition.macronutrients,
-      micronutrients: backendResult.condition.micros || backendResult.condition.micronutrients,
-      createdAt: backendResult.condition.createdAt,
-      updatedAt: backendResult.condition.updatedAt
+      id: resultData.id || resultData._id || backendResult.id,
+      conditionName: resultData.name || resultData.conditionName || body.conditionName || body.name,
+      description: resultData.description || body.description,
+      macronutrients: resultData.macronutrients || resultData.macros || body.macronutrients,
+      micronutrients: resultData.micronutrients || resultData.micros || body.micronutrients,
+      vitamins: resultData.vitamins || body.vitamins,
+      createdAt: resultData.createdAt || new Date().toISOString(),
+      updatedAt: resultData.updatedAt || new Date().toISOString()
     }
 
     return NextResponse.json({
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateCon
 
   } catch (error) {
     console.error('Error creating condition:', error)
-    
+
     return NextResponse.json({
       success: false,
       message: 'Internal server error'
@@ -99,9 +105,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (search) backendParams.append('search', search)
 
     // Send request to MongoDB backend
-    const backendUrl = `${config.mongodb.backendUrl}/api/condition/list?${backendParams.toString()}`
-    console.log('🔗 Fetching conditions from backend:', backendUrl)
-    
+    const backendUrl = `${config.mongodb.backendUrl}/api/condition/read`
+    console.log('🔗 Fetching conditions from read backend for dropdown:', backendUrl)
+
     const backendResponse = await fetch(backendUrl, {
       method: 'GET',
       headers: {
@@ -110,6 +116,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
 
     if (!backendResponse.ok) {
+      if (backendResponse.status === 404) {
+        console.warn('⚠️ Conditions list endpoint not found on backend. Returning empty list.');
+        return NextResponse.json({
+          success: true,
+          data: [],
+          message: 'Medical conditions service temporarily unavailable (404)'
+        })
+      }
       throw new Error(`Backend responded with status ${backendResponse.status}`)
     }
 
@@ -130,6 +144,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       description: condition.description,
       macronutrients: condition.macros || condition.macronutrients,
       micronutrients: condition.micros || condition.micronutrients,
+      vitamins: condition.vitamins,
       createdAt: condition.createdAt,
       updatedAt: condition.updatedAt
     }))
@@ -142,7 +157,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   } catch (error) {
     console.error('Error fetching conditions:', error)
-    
+
     return NextResponse.json({
       success: false,
       message: 'Internal server error'

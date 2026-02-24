@@ -32,7 +32,9 @@ import {
   Check,
   X,
   RotateCw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  User,
+  Activity
 } from "lucide-react"
 import { getRecipeById } from "@/lib/api/recipes"
 
@@ -69,72 +71,7 @@ interface ReviewData {
 }
 
 export default function RecipeApproval() {
-  const [pendingRecipes, setPendingRecipes] = useState<PendingRecipe[]>([
-    {
-      id: 'assign_001',
-      recipeTitle: 'Grilled Chicken Salad',
-      description: 'Standard low-carb option. Fiber is slightly low.',
-      conditionTag: 'Diabetes Type 2',
-      nutritionInfo: { calories: 350, protein: 40, carbs: 12, fat: 15 },
-      adminNotes: 'Standard low-carb option. Fiber is slightly low.',
-      submittedBy: 'System',
-      submittedAt: new Date().toISOString(),
-      status: 'pending',
-      ingredients: ['Chicken breast', 'Romaine lettuce', 'Cherry tomatoes', 'Cucumber', 'Olive oil'],
-      instructions: ['Grill chicken.', 'Chop veggies.', 'Toss with oil.'],
-      prepTime: 15,
-      cookTime: 10,
-      servings: 1
-    },
-    {
-      id: 'assign_002',
-      recipeTitle: 'Low-Carb Salmon Stir-fry',
-      description: 'Evaluate sodium levels in the soy sauce substitute.',
-      conditionTag: 'Hypertension',
-      nutritionInfo: { calories: 420, protein: 35, carbs: 8, fat: 28 },
-      adminNotes: 'Evaluate sodium levels in the soy sauce substitute.',
-      submittedBy: 'System',
-      submittedAt: new Date().toISOString(),
-      status: 'pending',
-      ingredients: ['Salmon fillet', 'Broccoli', 'Bell peppers', 'Coconut aminos', 'Ginger'],
-      instructions: ['Sauté salmon.', 'Add veggies.', 'Stir in aminos.'],
-      prepTime: 10,
-      cookTime: 15,
-      servings: 2
-    },
-    {
-      id: 'assign_003',
-      recipeTitle: 'Quinoa & Avocado Buddha Bowl',
-      description: 'Excellent healthy fat profile. High caloric density.',
-      conditionTag: 'Heart Disease',
-      nutritionInfo: { calories: 580, protein: 18, carbs: 65, fat: 32 },
-      adminNotes: 'Excellent healthy fat profile. High caloric density.',
-      submittedBy: 'System',
-      submittedAt: new Date().toISOString(),
-      status: 'pending',
-      ingredients: ['Quinoa', 'Avocado', 'Chickpeas', 'Spinach', 'Tahini'],
-      instructions: ['Cook quinoa.', 'Assemble bowl.', 'Drizzle tahini.'],
-      prepTime: 20,
-      cookTime: 15,
-      servings: 1
-    },
-    {
-      id: 'assign_004',
-      recipeTitle: 'Lentil Herb Soup',
-      description: 'High fiber content. Good for glycemic control.',
-      conditionTag: 'Diabetes',
-      nutritionInfo: { calories: 310, protein: 22, carbs: 45, fat: 4 },
-      adminNotes: 'High fiber content. Good for glycemic control.',
-      submittedBy: 'System',
-      submittedAt: new Date().toISOString(),
-      status: 'pending',
-      ingredients: ['Lentils', 'Carrots', 'Celery', 'Onion', 'Fresh herbs'],
-      instructions: ['Sauté veggies.', 'Add lentils and water.', 'Simmer for 30 mins.'],
-      prepTime: 10,
-      cookTime: 35,
-      servings: 4
-    }
-  ])
+  const [pendingRecipes, setPendingRecipes] = useState<PendingRecipe[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedRecipe, setSelectedRecipe] = useState<PendingRecipe | null>(null)
@@ -156,10 +93,10 @@ export default function RecipeApproval() {
 
       // Map mock doctor IDs to real MongoDB doctor ObjectIds
       const doctorIdMapping: { [key: string]: string } = {
-        'doctor-1': '69148e86ab8b9f5dd9000fcd',    // Dr. Vijay
-        'doctor_001': '69148e86ab8b9f5dd9000fcd',  // Dr. John Smith -> map to Dr. Vijay for now
-        'doctor_002': '69148e86ab8b9f5dd9000fcd',  // Dr. Sarah Johnson -> map to Dr. Vijay for now
-        '1': '69148e86ab8b9f5dd9000fcd'             // Dr. Vijay
+        'doctor-1': '699807109f57554e0817ac82',    // Primary Doctor ID from provided curl
+        'doctor_001': '699807109f57554e0817ac82',  // Dr. John Smith -> map to real backend ID
+        'doctor_002': '69148e86ab8b9f5dd9000fcd',  // Dr. Sarah Johnson
+        '1': '699807109f57554e0817ac82'             // Default to user's provided ID
       }
 
       // Use mapped ID if available, otherwise use the real ObjectId directly
@@ -174,53 +111,55 @@ export default function RecipeApproval() {
 
   // Load pending recipes
   useEffect(() => {
-    if (doctorId) {
-      loadPendingRecipes()
-    }
-  }, [doctorId])
+    loadPendingRecipes()
+  }, [])
 
   const loadPendingRecipes = async () => {
     setLoading(true)
     try {
-      console.log(`📡 Fetching assignments for doctor: ${doctorId}`)
-      const response = await fetch(`/api/doctor/assignments?doctorId=${doctorId}&status=pending`)
+      console.log(`📡 Fetching Recipe Requests from backend...`)
+
+      // Fetch from the new recipe_request API via proxy
+      const response = await fetch(`/api/doctor/recipe-requests`)
       const result = await response.json()
 
-      if (result.success && result.data && result.data.length > 0) {
-        const transformedRecipes = result.data.map((assignment: any) => ({
-          id: assignment.assignmentId,
-          _id: assignment.assignmentId,
-          recipeTitle: assignment.recipeTitle || 'Unknown Recipe',
-          description: assignment.note || `Recipe for ${assignment.conditionTag} treatment`,
-          conditionTag: assignment.conditionTag || 'General',
-          ingredients: assignment.ingredients || [],
-          instructions: assignment.instructions || [],
-          prepTime: 30,
-          cookTime: 45,
-          servings: 4,
-          nutritionInfo: assignment.nutrition || { calories: 0, protein: 0, carbs: 0, fat: 0 },
-          submittedBy: assignment.doctorName || "admin",
-          submittedAt: assignment.assignedAt,
-          status: 'pending',
-          adminNotes: assignment.note || assignment.comments || '',
-          assignmentData: assignment
+      if (result.success && result.data) {
+        const transformedRecipes = result.data.map((req: any) => ({
+          id: req._id,
+          _id: req._id,
+          recipeTitle: req.recipe_name || 'Unnamed Recipe',
+          description: `Patient requested recipe for ${req.medical_condition || 'General Health'}`,
+          conditionTag: req.medical_condition || 'General',
+          ingredients: [],
+          instructions: [],
+          prepTime: 20,
+          cookTime: 30,
+          servings: 2,
+          nutritionInfo: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+          // Use user_name from enriched API or fallback to ID mapping
+          submittedBy: req.user_name || (req.user_id === "69982eba9f57554e0817ac84" ? "Bob" : (req.user_id || "Patient")),
+          submittedAt: req.requested_at,
+          status: req.status || 'pending',
+          adminNotes: req.patient_details ?
+            `Patient: ${req.user_name} | Phone: ${req.patient_details.phone || 'N/A'} | Condition: ${req.medical_condition}` :
+            `Request ID: ${req._id}`,
+          assignmentData: req
         }))
 
-        // Keep static recipes and add unique backend ones
-        setPendingRecipes(prev => {
-          const combined = [...prev]
-          transformedRecipes.forEach((newRecipe: any) => {
-            if (!combined.some(r => r.id === newRecipe.id)) {
-              combined.push(newRecipe)
-            }
-          })
-          return combined
-        })
+        setPendingRecipes(transformedRecipes)
+      } else {
+        setPendingRecipes([])
       }
     } catch (error) {
-      console.error('Error loading recipes:', error)
+      console.error('Error loading recipe requests:', error)
+      toast({
+        title: "❌ Fetch Error",
+        description: "Could not connect to the recipe approval backend.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleReviewRecipe = async (status: 'approved' | 'rejected') => {
@@ -235,46 +174,46 @@ export default function RecipeApproval() {
 
     setSubmitting(true)
     try {
-      const reviewData = {
-        assignmentId: selectedRecipe.assignmentData?.assignmentId || selectedRecipe.id,
-        status: status === 'approved' ? 'Approved' : 'Rejected', // Use correct capitalization
-        doctorComment: reviewNotes.trim()
+      let response;
+      if (status === 'approved') {
+        // Use the specialized Approval API provided by the user
+        response = await fetch(`/api/doctor/recipe-approval`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: selectedRecipe.id,
+            doctor_id: doctorId
+          })
+        })
+      } else {
+        // Use specialized Rejection API provided by the user
+        response = await fetch(`/api/doctor/recipe-reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: selectedRecipe.id,
+            doctor_id: doctorId,
+            reason: reviewNotes.trim()
+          })
+        })
       }
-
-      console.log('📝 Submitting review:', reviewData)
-
-      const response = await fetch(`/api/doctor/review`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reviewData)
-      })
 
       const result = await response.json()
 
       if (result.success) {
-        // Remove from pending recipes list
-        setPendingRecipes(prev =>
-          prev.filter(recipe => recipe.id !== selectedRecipe.id)
-        )
-
+        setPendingRecipes(prev => prev.filter(recipe => recipe.id !== selectedRecipe.id))
         toast({
           title: "✅ Success",
-          description: result.message,
+          description: result.message || `Recipe ${status} successfully`,
           duration: 4000,
         })
-
-        // Reset form
         setShowReviewDialog(false)
         setSelectedRecipe(null)
         setReviewNotes("")
-
-        console.log('📝 Recipe review submitted successfully:', reviewData)
       } else {
         toast({
-          title: "⚠️ Review Issue",
-          description: result.message || "Unable to submit review at this time",
+          title: "⚠️ Issue",
+          description: result.message || "Unable to update recipe status",
           duration: 5000,
         })
       }
@@ -294,26 +233,38 @@ export default function RecipeApproval() {
   const handleQuickStatusUpdate = async (recipe: PendingRecipe, status: 'approved' | 'rejected') => {
     setLoading(true)
     try {
-      const reviewData = {
-        assignmentId: recipe.assignmentData?.assignmentId || recipe.id,
-        status: status === 'approved' ? 'Approved' : 'Rejected',
-        doctorComment: `Quick ${status} from dashboard`
+      let response;
+      if (status === 'approved') {
+        response = await fetch(`/api/doctor/recipe-approval`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: recipe.id,
+            doctor_id: doctorId
+          })
+        })
+      } else {
+        response = await fetch(`/api/doctor/recipe-reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: recipe.id,
+            doctor_id: doctorId,
+            reason: 'Quick rejection from dashboard'
+          })
+        })
       }
-
-      const response = await fetch(`/api/doctor/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reviewData)
-      })
 
       const result = await response.json()
       if (result.success) {
         setPendingRecipes(prev => prev.filter(r => r.id !== recipe.id))
         toast({
           title: status === 'approved' ? "✅ Recipe Approved" : "❌ Recipe Rejected",
-          description: `The recipe has been marked as ${status}.`,
+          description: result.message || `The recipe has been marked as ${status}.`,
           duration: 3000,
         })
+      } else {
+        toast({ title: "Error", description: result.message || "Failed to update status", variant: "destructive" })
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to update status", variant: "destructive" })
@@ -325,20 +276,20 @@ export default function RecipeApproval() {
   const openReviewDialog = async (recipe: PendingRecipe) => {
     // Fetch full recipe details to ensure we have nutrition info
     try {
-      let recipeId = recipe.assignmentData?.recipeId || recipe.id;
+      let recipeId = recipe.assignmentData?.recipe_id || recipe.assignmentData?.recipeId || recipe.id;
+
       // Handle case where recipeId is an object (populated field)
       if (typeof recipeId === 'object' && recipeId !== null) {
-        recipeId = recipeId._id || recipeId.id;
+        recipeId = (recipeId as any)._id || (recipeId as any).id;
       }
 
-      if (recipeId) {
+      // Only fetch if we have a valid ID (it's null for new recipe requests)
+      if (recipeId && recipeId !== "null" && recipeId !== "undefined") {
         const result = await getRecipeById(recipeId);
         if (result.success && result.data) {
           // Merge fetched data with existing recipe data
-          // Handle different possible field names for nutrition
           const nutritionData = result.data.nutritionInfo ||
             (result.data as any).nutrition ||
-            (result.data as any).nutritional_info ||
             recipe.nutritionInfo;
 
           const fullRecipe = {
@@ -352,7 +303,12 @@ export default function RecipeApproval() {
           setSelectedRecipe(recipe);
         }
       } else {
-        setSelectedRecipe(recipe);
+        // For new requests with no recipe selected yet
+        setSelectedRecipe({
+          ...recipe,
+          ingredients: recipe.ingredients.length > 0 ? recipe.ingredients : ["No ingredients provided for this request"],
+          instructions: recipe.instructions.length > 0 ? recipe.instructions : ["Doctor needs to assign a recipe or provide instructions"]
+        });
       }
     } catch (error) {
       console.error("Error fetching recipe details:", error);
@@ -364,22 +320,18 @@ export default function RecipeApproval() {
   }
 
   const openViewDialog = async (recipe: PendingRecipe) => {
-    // Fetch full recipe details to ensure we have nutrition info
+    // Similar logic for View Dialog
     try {
-      let recipeId = recipe.assignmentData?.recipeId || recipe.id;
-      // Handle case where recipeId is an object (populated field)
+      let recipeId = recipe.assignmentData?.recipe_id || recipe.assignmentData?.recipeId || recipe.id;
       if (typeof recipeId === 'object' && recipeId !== null) {
-        recipeId = recipeId._id || recipeId.id;
+        recipeId = (recipeId as any)._id || (recipeId as any).id;
       }
 
-      if (recipeId) {
+      if (recipeId && recipeId !== "null" && recipeId !== "undefined") {
         const result = await getRecipeById(recipeId);
         if (result.success && result.data) {
-          // Merge fetched data with existing recipe data
-          // Handle different possible field names for nutrition
           const nutritionData = result.data.nutritionInfo ||
             (result.data as any).nutrition ||
-            (result.data as any).nutritional_info ||
             recipe.nutritionInfo;
 
           const fullRecipe = {
@@ -393,7 +345,11 @@ export default function RecipeApproval() {
           setSelectedRecipe(recipe);
         }
       } else {
-        setSelectedRecipe(recipe);
+        setSelectedRecipe({
+          ...recipe,
+          ingredients: recipe.ingredients.length > 0 ? recipe.ingredients : ["No ingredients provided for this request"],
+          instructions: recipe.instructions.length > 0 ? recipe.instructions : ["Doctor needs to assign a recipe or provide instructions"]
+        });
       }
     } catch (error) {
       console.error("Error fetching recipe details:", error);
@@ -461,14 +417,34 @@ export default function RecipeApproval() {
                         {recipe.recipeTitle}
                       </h3>
 
-                      {/* Macros - High Contrast */}
-                      <div className="text-sm font-bold text-slate-600 flex items-center gap-2">
-                        <span className="text-blue-600">Macros:</span> {recipe.nutritionInfo?.calories || 0} kcal | {recipe.nutritionInfo?.protein || 0}g P | {recipe.nutritionInfo?.carbs || 0}g C | {recipe.nutritionInfo?.fat || 0}g F
+                      {/* Patient & Condition Details */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-full border border-blue-100" title={`ID: ${recipe.assignmentData?.user_id || recipe.assignmentData?.userId || 'N/A'}`}>
+                          <User className="w-3 h-3 text-blue-500" />
+                          <span className="text-[11px] font-black text-blue-700 uppercase tracking-tight">
+                            Patient: {recipe.submittedBy}
+                            {recipe.assignmentData?.patient_details?.age && ` | ${recipe.assignmentData.patient_details.age}Y`}
+                            {recipe.assignmentData?.patient_details?.gender && ` | ${recipe.assignmentData.patient_details.gender}`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                          <Activity className="w-3 h-3 text-emerald-500" />
+                          <span className="text-[11px] font-black text-emerald-700 uppercase tracking-tight">Condition: {recipe.conditionTag}</span>
+                        </div>
                       </div>
 
-                      {/* Clinical Note */}
+                      {/* Clinical Note / Patient Info */}
                       <div className="text-sm text-slate-400 font-medium max-w-2xl">
-                        <span className="font-extrabold text-slate-500 italic">Note: </span> {recipe.adminNotes || "Sodium is above the given limit"}
+                        <span className="font-extrabold text-slate-500 italic">Details: </span>
+                        {recipe.assignmentData?.patient_details ? (
+                          <span className="text-slate-600 font-bold">
+                            {recipe.assignmentData.patient_details.phone && `📱 ${recipe.assignmentData.patient_details.phone}`}
+                            {recipe.assignmentData.patient_details.email && ` | 📧 ${recipe.assignmentData.patient_details.email}`}
+                            {recipe.assignmentData.patient_details.address && ` | 📍 ${recipe.assignmentData.patient_details.address}`}
+                          </span>
+                        ) : (
+                          recipe.adminNotes || "No additional patient details available"
+                        )}
                       </div>
                     </div>
 

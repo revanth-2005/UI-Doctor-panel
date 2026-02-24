@@ -39,12 +39,21 @@ export interface Patient {
   }
   createdAt?: Date
   updatedAt?: Date
+  user_name?: string
+  height?: string
+  weight?: string
+  bmi_score?: string
+  blood_pressure?: string
+  gender?: string
+  age?: number
+  medical_info?: { condition: string }[]
 }
 
 export interface CreatePatientRequest {
   name: string
   phone: string
   userId?: string
+  password?: string
   assignedDoctorId?: string
   medicalCondition?: string
   nutritionLimits?: {
@@ -68,9 +77,17 @@ export interface CreatePatientRequest {
       folate?: number
     }
   }
+  user_name?: string
+  height?: string
+  weight?: string
+  bmi_score?: string
+  blood_pressure?: string
+  gender?: string
+  age?: number
+  medical_info?: { condition: string }[]
 }
 
-export interface UpdatePatientRequest extends Partial<CreatePatientRequest> {}
+export interface UpdatePatientRequest extends Partial<CreatePatientRequest> { }
 
 // ==================== RECOMMENDATION INTERFACES ====================
 
@@ -107,6 +124,9 @@ export interface Recommendation {
   }
   createdAt: Date | string
   updatedAt: Date | string
+  // Backend compatibility
+  id?: string
+  doctorName?: string
   // Populated fields
   patient?: Patient
   recipe?: any
@@ -138,6 +158,9 @@ export interface CreateRecommendationRequest {
     hydration?: string
     mealTiming?: string
   }
+  patientName?: string
+  recipeName?: string
+  doctorName?: string
 }
 
 // ==================== ASSIGNMENT INTERFACES ====================
@@ -181,7 +204,7 @@ export interface ApiResponse<T> {
 export async function fetchPatients(doctorId?: string): Promise<ApiResponse<Patient[]>> {
   try {
     console.log('🔍 Fetching patients...')
-    
+
     // Use the patient list endpoint - the backend will handle any doctor-specific filtering
     const response = await api.get(API_ENDPOINTS.patient.list, {
       page: 1,
@@ -189,22 +212,22 @@ export async function fetchPatients(doctorId?: string): Promise<ApiResponse<Pati
       sortBy: 'createdAt',
       sortOrder: 'desc'
     })
-    
+
     console.log('📋 Raw patients API response:', response)
-    
+
     if (response.success) {
       // The backend returns data in 'patients' property, not 'data'
-      let patients = Array.isArray(response.data?.patients) ? response.data.patients : 
-                    Array.isArray(response.data) ? response.data : []
-      
+      let patients = Array.isArray(response.data?.patients) ? response.data.patients :
+        Array.isArray(response.data) ? response.data : []
+
       // Map _id to id for compatibility
       patients = patients.map((patient: any) => ({
         ...patient,
         id: patient._id || patient.id
       }))
-      
+
       console.log('📋 Processed patients:', patients)
-      
+
       return {
         success: true,
         data: patients,
@@ -265,7 +288,7 @@ export async function createPatient(doctorId: string, patientData: CreatePatient
     }
 
     const response = await api.post(API_ENDPOINTS.patient.create, backendPatientData)
-    
+
     if (response.success) {
       return {
         success: true,
@@ -293,7 +316,7 @@ export async function createPatient(doctorId: string, patientData: CreatePatient
 export async function updatePatient(patientId: string, patientData: UpdatePatientRequest): Promise<ApiResponse<Patient>> {
   try {
     const response = await api.put(API_ENDPOINTS.patient.update(patientId), patientData)
-    
+
     if (response.success) {
       return {
         success: true,
@@ -321,7 +344,7 @@ export async function updatePatient(patientId: string, patientData: UpdatePatien
 export async function deletePatient(patientId: string): Promise<ApiResponse<boolean>> {
   try {
     const response = await api.delete(API_ENDPOINTS.patient.delete(patientId))
-    
+
     if (response.success) {
       return {
         success: true,
@@ -350,7 +373,7 @@ export async function deletePatient(patientId: string): Promise<ApiResponse<bool
 export async function fetchDoctorAssignments(doctorId: string): Promise<ApiResponse<DoctorAssignment[]>> {
   try {
     const response = await api.get(`${API_ENDPOINTS.doctor.assignments}/${doctorId}`)
-    
+
     if (response.success) {
       return {
         success: true,
@@ -379,7 +402,7 @@ export async function fetchDoctorAssignments(doctorId: string): Promise<ApiRespo
 export async function reviewAssignment(reviewData: ReviewAssignmentRequest): Promise<ApiResponse<DoctorAssignment>> {
   try {
     const response = await api.post(API_ENDPOINTS.doctor.review, reviewData)
-    
+
     if (response.success) {
       return {
         success: true,
@@ -409,7 +432,7 @@ export async function reviewAssignment(reviewData: ReviewAssignmentRequest): Pro
 export async function fetchRecommendations(doctorId: string): Promise<ApiResponse<Recommendation[]>> {
   try {
     const response = await api.get(`${API_ENDPOINTS.doctor.recommendations}/${doctorId}`)
-    
+
     if (response.success) {
       return {
         success: true,
@@ -441,7 +464,7 @@ export async function createRecommendation(doctorId: string, recommendationData:
       ...recommendationData,
       doctorId
     })
-    
+
     if (response.success) {
       return {
         success: true,

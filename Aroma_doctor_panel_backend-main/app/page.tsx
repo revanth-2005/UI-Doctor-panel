@@ -22,7 +22,10 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/auth/login', {
+      // Use different endpoints based on role
+      const endpoint = role === 'doctor' ? '/api/doctor/login' : '/api/auth/admin'
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role })
@@ -30,11 +33,25 @@ export default function LoginPage() {
 
       const data = await response.json()
 
-      if (data.success && data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user))
+      if (data.success) {
+        // Normalize user data based on the response structure
+        const userData = role === 'doctor' ? {
+          id: data.data.doctorId,
+          name: data.data.doctorName,
+          email: data.data.email,
+          role: 'doctor',
+          specialization: data.data.specialization
+        } : {
+          id: data.data.id,
+          name: data.data.name,
+          email: data.data.email,
+          role: 'admin'
+        }
+
+        localStorage.setItem("user", JSON.stringify(userData))
 
         // Redirect based on role
-        if (data.user.role === "admin") {
+        if (role === "admin") {
           router.push("/admin/dashboard")
         } else {
           router.push("/doctor/dashboard")
@@ -140,9 +157,9 @@ export default function LoginPage() {
                   )}
 
                   {/* Login Button */}
-                  <Button 
-                    type="submit" 
-                    disabled={loading} 
+                  <Button
+                    type="submit"
+                    disabled={loading}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white h-11 text-base font-medium"
                   >
                     {loading ? "Signing in..." : "Sign in"}

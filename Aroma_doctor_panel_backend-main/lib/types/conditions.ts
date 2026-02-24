@@ -1,24 +1,26 @@
 // Types for medical conditions and nutritional data
 
 export interface Macronutrients {
-  protein?: number    // grams
-  carbs?: number      // grams  
-  fat?: number        // grams
-  fiber?: number      // grams
-  calories?: number   // kcal
+  protein?: number | string    // grams
+  carbs?: number | string    // grams  
+  fat?: number | string    // grams
+  fiber?: number | string    // grams
+  calories?: number | string  // kcal
+  [key: string]: any
 }
 
 export interface Micronutrients {
-  sodium?: number       // mg
-  potassium?: number    // mg
-  calcium?: number      // mg
-  zinc?: number         // mg
-  magnesium?: number    // mg
-  iron?: number         // mg
-  vitamin_b12?: number  // µg
-  vitamin_d?: number    // IU
-  vitamin_c?: number    // mg
-  folate?: number       // µg
+  sodium?: number | string      // mg
+  potassium?: number | string   // mg
+  calcium?: number | string     // mg
+  zinc?: number | string        // mg
+  magnesium?: number | string   // mg
+  iron?: number | string        // mg
+  vitamin_b12?: number | string // µg
+  vitamin_d?: number | string   // IU
+  vitamin_c?: number | string   // mg
+  folate?: number | string      // µg
+  [key: string]: any
 }
 
 export interface CreateConditionRequest {
@@ -26,6 +28,7 @@ export interface CreateConditionRequest {
   description?: string
   macronutrients?: Macronutrients
   micronutrients?: Micronutrients
+  vitamins?: Record<string, any>
 }
 
 export interface Condition {
@@ -34,8 +37,11 @@ export interface Condition {
   description?: string
   macronutrients?: Macronutrients
   micronutrients?: Micronutrients
-  createdAt: Date
-  updatedAt: Date
+  macros?: Macronutrients
+  micros?: Micronutrients
+  vitamins?: Record<string, any>
+  createdAt: string | Date
+  updatedAt: string | Date
 }
 
 export interface CreateConditionResponse {
